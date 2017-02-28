@@ -1,0 +1,88 @@
+#!/usr/bin/python
+
+import sys
+import time
+import thread
+import os
+import select
+import kefeer.firefox
+
+
+import Quartz.CoreGraphics as CG
+from Quartz import CoreGraphics
+
+default_settings = {}
+settings = []
+pipe_brightness, pipe_input = os.pipe()
+
+display_ids = CG.CGGetActiveDisplayList(10, None, None)[1]
+
+
+def resetBrightness():
+	CG.CGDisplayRestoreColorSyncSettings()
+
+def loadDefaultSettings():
+	global default_settings
+
+	resetBrightness()
+
+	for display_id in display_ids:
+		default_settings[display_id] = getSettings(display_id)
+
+def getSettings(display_id):
+	tablen = CG.CGDisplayGammaTableCapacity(display_id)
+	err, r, g, b, count = CG.CGGetDisplayTransferByTable(display_id, tablen, None, None, None, None)
+	return r, g, b, count
+
+def calculateBrightness(display_id, percents):
+	r, g, b, count = default_settings[display_id]
+
+	try:
+		percents = int(percents)*10
+	except:
+		return display_id, r, g, b
+
+	f = percents / 100.0
+
+	rh = [x*f for x in r]
+	gh = [x*f for x in g]
+	bh = [x*f for x in b]
+
+	return display_id, rh, gh, bh
+
+
+def setBrightness(display_id, r, g, b):
+	tablen = CG.CGDisplayGammaTableCapacity(display_id)
+	CG.CGSetDisplayTransferByTable(display_id, tablen, r, g, b)
+
+
+def maintainBrightness():
+	global settings
+	while True:
+		for id, r, g, b in settings:
+			setBrightness(id, r, g, b)
+		x, _, _ = select.select([pipe_brightness], [], [], 5.0)
+		if x:  os.read(pipe_brightness, 1024)
+
+
+def update_settings(args):
+	global settings
+	settings = [calculateBrightness(d, p) for d, p in map(None, display_ids, args)]
+	for id, r, g, b in settings:
+		print id, sum(r)/len(r), sum(g)/len(g), sum(b)/len(b)
+
+def handle_input():
+	while True:
+		args = raw_input('>>> ')
+		update_settings(args[:2])
+		os.write(pipe_input, '.')
+
+def main():
+	loadDefaultSettings()
+	update_settings(['q', 'q'])
+	thread.start_new_thread(maintainBrightness, ())
+	handle_input()
+
+main()
+
+
