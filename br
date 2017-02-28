@@ -12,6 +12,7 @@ import Quartz.CoreGraphics as CG
 from Quartz import CoreGraphics
 
 default_settings = {}
+current_args = 'qq'
 settings = []
 pipe_brightness, pipe_input = os.pipe()
 
@@ -58,15 +59,28 @@ def setBrightness(display_id, r, g, b):
 
 def maintainBrightness():
 	global settings
+	pre_fullscreen = None
 	while True:
+		if kefeer.firefox.is_fullscreen():
+			if not pre_fullscreen:
+				pre_fullscreen = current_args
+				update_settings('qq')
+		else:
+			if pre_fullscreen:
+				update_settings(pre_fullscreen)
+				pre_fullscreen = None
+
 		for id, r, g, b in settings:
 			setBrightness(id, r, g, b)
 		x, _, _ = select.select([pipe_brightness], [], [], 5.0)
 		if x:  os.read(pipe_brightness, 1024)
 
 
+
 def update_settings(args):
+	global current_args
 	global settings
+	current_args = args
 	settings = [calculateBrightness(d, p) for d, p in map(None, display_ids, args)]
 	for id, r, g, b in settings:
 		print id, sum(r)/len(r), sum(g)/len(g), sum(b)/len(b)
