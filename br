@@ -6,6 +6,7 @@ import thread
 import os
 import select
 import kefeer.firefox
+from kefeer.colortemp import convert_K_to_RGB
 
 
 import Quartz.CoreGraphics as CG
@@ -35,6 +36,9 @@ def getSettings(display_id):
 	err, r, g, b, count = CG.CGGetDisplayTransferByTable(display_id, tablen, None, None, None, None)
 	return r, g, b, count
 
+def blend(a,b,r):
+	return (1-r)*a + r*b
+
 def calculateBrightness(display_id, percents):
 	r, g, b, count = default_settings[display_id]
 
@@ -45,9 +49,21 @@ def calculateBrightness(display_id, percents):
 
 	f = percents / 100.0
 
+
 	rh = [x*f for x in r]
 	gh = [x*f for x in g]
 	bh = [x*f for x in b]
+
+	tr,tg,tb=convert_K_to_RGB(2500)
+
+	# yellow tint
+	#rh = [blend(x,tr,0.1) for x in rh]
+	#gh = [blend(x,tg,0.1) for x in gh]
+	#bh = [blend(x,tb,0.1) for x in bh]
+
+	rh = [x*tr for x in rh]
+	gh = [x*tg for x in gh]
+	bh = [x*tb for x in bh]
 
 	return display_id, rh, gh, bh
 
@@ -61,6 +77,7 @@ def maintainBrightness():
 	global settings
 	pre_fullscreen = None
 	while True:
+		"""
 		if kefeer.firefox.is_fullscreen():
 			if not pre_fullscreen:
 				pre_fullscreen = current_args
@@ -69,7 +86,7 @@ def maintainBrightness():
 			if pre_fullscreen:
 				update_settings(pre_fullscreen)
 				pre_fullscreen = None
-
+		"""
 		for id, r, g, b in settings:
 			setBrightness(id, r, g, b)
 		x, _, _ = select.select([pipe_brightness], [], [], 5.0)
